@@ -15,14 +15,32 @@ export default function ScanScreen() {
   }, []);
 
   const handleBarCodeScanned = async ({ data }) => {
-    setScanned(true);
-    const product = await getProductByBarcode(data);
-    if (product) {
-      Alert.alert('Product Found', `You have ${product.name}`);
-    } else {
-      Alert.alert('Product Not Found', 'This product is not in your inventory');
+    if (scanned) {
+      return;
     }
-    setScanned(false);
+
+    setScanned(true);
+    try {
+      const product = await getProductByBarcode(data);
+      const title = product ? 'Product Found' : 'Product Not Found';
+      const message = product
+        ? `You have ${product.name}`
+        : 'This product is not in your inventory';
+
+      Alert.alert(title, message, [
+        {
+          text: 'OK',
+          onPress: () => setScanned(false),
+        },
+      ]);
+    } catch (error) {
+      Alert.alert('Error', 'Unable to check the product right now.', [
+        {
+          text: 'OK',
+          onPress: () => setScanned(false),
+        },
+      ]);
+    }
   };
 
   if (hasPermission === null) {
