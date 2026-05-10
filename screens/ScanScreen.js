@@ -1,24 +1,27 @@
 import { View, Text, StyleSheet, Alert } from 'react-native';
-import { Camera, CameraView } from 'expo-camera';
-import { useState, useEffect } from 'react';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useState, useEffect, useRef } from 'react';
 import { getProductByBarcode } from '../db';
 
 export default function ScanScreen() {
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const scannedRef = useRef(false);
 
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
+      if (permission === null) {
+        await requestPermission();
+      }
     })();
-  }, []);
+  }, [permission, requestPermission]);
 
   const handleBarCodeScanned = async ({ data }) => {
-    if (scanned) {
+    if (scannedRef.current) {
       return;
     }
 
+    scannedRef.current = true;
     setScanned(true);
     try {
       const product = await getProductByBarcode(data);
@@ -30,25 +33,39 @@ export default function ScanScreen() {
       Alert.alert(title, message, [
         {
           text: 'OK',
-          onPress: () => setScanned(false),
+          onPress: () => {
+            scannedRef.current = false;
+            setScanned(false);
+          },
         },
       ]);
     } catch (error) {
       Alert.alert('Error', 'Unable to check the product right now.', [
         {
           text: 'OK',
-          onPress: () => setScanned(false),
+          onPress: () => {
+            scannedRef.current = false;
+            setScanned(false);
+          },
         },
       ]);
     }
   };
 
-  if (hasPermission === null) {
-    return <Text>Requesting camera permission</Text>;
+  if (permission === null) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.requestText}>Requesting camera permission...</Text>
+      </View>
+    );
   }
 
-  if (hasPermission === false) {
-    return <Text>No access to camera</Text>;
+  if (!permission.granted) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Camera permission denied. Please enable it in settings.</Text>
+      </View>
+    );
   }
 
   return (
@@ -58,11 +75,14 @@ export default function ScanScreen() {
         facing="back"
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
       />
-      {scanned && <Text>Scanning...</Text>}
+      {scanned && <Text style={styles.scanningText}>Scanning...</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  requestText: { fontSize: 18, color: '#333' },
+  errorText: { fontSize: 16, color: 'red', textAlign: 'center', padding: 20 },
+  scanningText: { fontSize: 16, color: '#fff', backgroundColor: 'rgba(0,0,0,0.5)', padding: 10 },
 });
